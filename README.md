@@ -68,3 +68,51 @@ for address in addresses:
     print("-" * 50)
 
 ```
+
+
+```
+# Import necessary libraries
+import pandas as pd
+import re
+
+# Step 1: Run Spark SQL queries to get distinct values
+province_df = spark.sql("SELECT DISTINCT province FROM dim_province_district").toPandas()
+district_df = spark.sql("SELECT DISTINCT district FROM dim_province_district").toPandas()
+ward_df = spark.sql("SELECT DISTINCT ward FROM dim_province_ward").toPandas()
+
+# Step 2: Create regex patterns based on data fetched from SQL
+# Convert provinces, districts, and wards into lists
+provinces = province_df['province'].tolist()
+districts = district_df['district'].tolist()
+wards = ward_df['ward'].tolist()
+
+# Create regex patterns using the fetched data
+province_regex = r"(" + "|".join(provinces) + r")"
+district_regex = r"(" + "|".join(districts) + r")"
+ward_regex = r"(" + "|".join(wards) + r")"
+
+# Example normalized address data (already normalized)
+normalized_addresses = [
+    "HO CHI MINH, QUAN 1, PHUONG XUAN PHUONG",
+    "HO CHI MINH, QUAN 1, P XUAN PHUONG",
+    "HA NOI, HUYEN HOAI AN, XA SONG LAM",
+    "HO CHI MINH, QUAN 1, PHUONG 14"
+]
+
+# Step 3: Use regex to extract components from the address
+for address in normalized_addresses:
+    province_match = re.search(province_regex, address)
+    district_match = re.search(district_regex, address)
+    ward_match = re.search(ward_regex, address)
+
+    province = province_match.group(0) if province_match else None
+    district = district_match.group(0) if district_match else None
+    ward = ward_match.group(0) if ward_match else None
+
+    print(f"Address: {address}")
+    print(f"Province: {province}")
+    print(f"District: {district}")
+    print(f"Ward: {ward}")
+    print("-" * 50)
+
+```
