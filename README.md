@@ -116,3 +116,78 @@ for address in normalized_addresses:
     print("-" * 50)
 
 ```
+
+
+```
+import re
+import pandas as pd
+
+# Sample normalized address data (you may replace this with actual normalized data)
+normalized_addresses = [
+    "HO CHI MINH, QUAN 1, PHUONG XUAN PHUONG",
+    "HO CHI MINH, QUAN 1, P XUAN PHUONG",
+    "HA NOI, HUYEN HOAI AN, XA SONG LAM",
+    "HO CHI MINH, QUAN 1, PHUONG 14"
+]
+
+# Step 1: Fetch distinct values from Spark SQL
+province_df = spark.sql("SELECT DISTINCT province FROM dim_province_district").toPandas()
+district_df = spark.sql("SELECT DISTINCT district FROM dim_province_district").toPandas()
+ward_df = spark.sql("SELECT DISTINCT ward FROM dim_province_ward").toPandas()
+
+# Convert data to lists
+provinces = province_df['province'].tolist()
+districts = district_df['district'].tolist()
+wards = ward_df['ward'].tolist()
+
+# Create regex patterns based on data fetched from SQL
+province_regex = r"(" + "|".join(provinces) + r")"
+district_regex = r"(" + "|".join(districts) + r")"
+ward_regex = r"(" + "|".join(wards) + r")"
+
+# Step 2: Function to extract and validate province, district, and ward
+def extract_and_validate(address):
+    # Step 2.1: Check for predefined provinces directly
+    province_match = re.search(province_regex, address)
+    province = province_match.group(0) if province_match else None
+    
+    # If no predefined province, check for "TINH" or "THANH PHO"
+    if not province:
+        if re.search(r"\b(TINH|THANH PHO)\b", address, re.IGNORECASE):
+            # Extract province from the database if it starts with TINH or THANH PHO
+            province_search = re.search(r"\b(TINH|THANH PHO)\s+(\w+)", address, re.IGNORECASE)
+            if province_search:
+                province_candidate = province_search.group(2)
+                # Query SQL to verify if this province exists
+                verified_province_df = spark.sql(f"SELECT province FROM dim_province_district WHERE province = '{province_candidate}'").toPandas()
+                if not verified_province_df.empty:
+                    province = verified_province_df['province'][0]
+    
+    # Step 2.2: Match the district
+    district_match = re.search(district_regex, address)
+    district = district_match.group(0) if district_match else None
+    
+    # Step 2.3: Validate the combination of province and district
+    if province and district:
+        valid_district_df = spark.sql(f"SELECT district FROM dim_province_district WHERE province = '{province}' AND district = '{district}'").toPandas()
+        if not valid_district_df.empty:
+            # Step 2.4: Match the ward if the province and district are valid
+            ward_match = re.search(ward_regex, address)
+            ward = ward_match.group(0) if ward_match else None
+
+            if ward:
+                # Validate the combination of province, district, and ward
+                valid_ward_df = spark.sql(f"SELECT ward FROM dim_province_ward WHERE province = '{province}' AND district = '{district}' AND ward = '{ward}'").toPandas()
+                if not valid_ward_df.empty:
+                    return {'Province': province, 'District': district, 'Ward': ward}
+    
+    return {'Province': None, 'District': None, 'Ward': None}
+
+# Step 3: Apply the function to all addresses
+for address in normalized_addresses:
+    result = extract_and_validate(address)
+    print(f"Address: {address}")
+    print(f"Validation Result: {result}")
+    print("-" * 50)
+
+```
