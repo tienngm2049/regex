@@ -191,3 +191,78 @@ for address in normalized_addresses:
     print("-" * 50)
 
 ```
+
+
+```
+import re
+
+# Giả sử đây là danh sách từ dimension bảng bạn đã lấy từ SQL
+province_list = ['HA NOI', 'HO CHI MINH', 'HAI PHONG', 'QUANG NINH']
+district_list = ['QUAN 1', 'QUAN 2', 'DONG DA', 'HOAN KIEM', 'HUYEN HOAI AN']
+ward_list = ['PHUONG XUAN PHUONG', 'XA SONG LAM', 'PHUONG 14']
+
+# Regex helper từ từ điển
+province_regex = r'\b(' + '|'.join([re.escape(p) for p in province_list]) + r')\b'
+district_regex = r'\b(' + '|'.join([re.escape(d) for d in district_list]) + r')\b'
+ward_regex = r'\b(' + '|'.join([re.escape(w) for w in ward_list]) + r')\b'
+
+# Regex khởi đầu từ khóa
+province_prefix = r'(THANH PHO|TINH)\s+([A-Z\s]+)'
+district_prefix = r'(QUAN|HUYEN)\s+([A-Z\s]+)'
+ward_prefix = r'(PHUONG|XA|THI TRAN)\s+([A-Z\s]+)'
+
+# Hàm xử lý một địa chỉ
+def extract_address_components(address):
+    address = address.upper()  # Chuyển về chữ in hoa để đồng nhất
+    parts = re.split(r'[,-]', address)  # Tách theo dấu phẩy hoặc gạch
+
+    result = {"province": None, "district": None, "ward": None}
+
+    for part in parts:
+        part = part.strip()
+
+        # So khớp trực tiếp từ dictionary
+        if not result["province"] and re.search(province_regex, part):
+            result["province"] = re.search(province_regex, part).group(0)
+
+        if not result["district"] and re.search(district_regex, part):
+            result["district"] = re.search(district_regex, part).group(0)
+
+        if not result["ward"] and re.search(ward_regex, part):
+            result["ward"] = re.search(ward_regex, part).group(0)
+
+        # Tìm qua prefix
+        if not result["province"]:
+            province_prefix_match = re.search(province_prefix, part)
+            if province_prefix_match:
+                possible_province = province_prefix_match.group(2).strip()
+                for prov in province_list:
+                    if prov in possible_province:
+                        result["province"] = prov
+                        break
+
+        if not result["district"]:
+            district_prefix_match = re.search(district_prefix, part)
+            if district_prefix_match:
+                possible_district = f"{district_prefix_match.group(1)} {district_prefix_match.group(2).strip()}"
+                for dist in district_list:
+                    if dist in possible_district:
+                        result["district"] = dist
+                        break
+
+        if not result["ward"]:
+            ward_prefix_match = re.search(ward_prefix, part)
+            if ward_prefix_match:
+                possible_ward = f"{ward_prefix_match.group(1)} {ward_prefix_match.group(2).strip()}"
+                for w in ward_list:
+                    if w in possible_ward:
+                        result["ward"] = w
+                        break
+
+    return result
+
+# Ví dụ địa chỉ
+example_address = "So 10, Phuong Xuan Phuong - Quan 1 - Thanh Pho Ho Chi Minh"
+print("Extracted:", extract_address_components(example_address))
+
+```
